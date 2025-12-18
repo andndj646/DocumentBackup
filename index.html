@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width" />
+  <title>ShareDrop</title>
+  <style>
+    body{font-family:sans-serif;max-width:600px;margin:40px auto;padding:0 20px;text-align:center;background:#f5f7ff;color:#333}
+    @media (prefers-color-scheme:dark){body{background:#1a1d29;color:#eaeff7}}
+    h1{margin:0 0 20px;font-size:1.8rem}
+    .drop{border:2px dashed #ccc;border-radius:12px;padding:30px;margin:20px 0;cursor:pointer}
+    .drop:hover{border-color:#6366f1}
+    input[type=file]{display:none}
+    button{background:#6366f1;color:white;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;margin:10px}
+    #link{width:100%;padding:10px;margin:15px 0;border:1px solid #ddd;border-radius:6px;background:transparent;color:inherit}
+    .status{color:#10b981;font-size:0.9em}
+  </style>
+</head>
+<body>
+  <h1>🚀 ShareDrop</h1>
+  <div class="drop" id="drop">📁 Drop file or click to browse</div>
+  <input type="file" id="f" />
+  <button id="share" disabled>📤 Share</button>
+  <input type="text" id="link" readonly placeholder="Share link appears here" />
+  <div class="status" id="s"></div>
+
+  <script type="module">
+    import { Iroh } from "https://esm.sh/@iroh/iroh-js@0.25";
+    const drop = document.getElementById('drop');
+    const fIn = document.getElementById('f');
+    const shareBtn = document.getElementById('share');
+    const linkIn = document.getElementById('link');
+    const status = document.getElementById('s');
+    let file;
+
+    drop.onclick = () => fIn.click();
+    fIn.onchange = e => { file = e.target.files[0]; shareBtn.disabled = !file; };
+    drop.ondragover = e => { e.preventDefault(); drop.style.borderColor = '#6366f1'; };
+    drop.ondragleave = () => drop.style.borderColor = '#ccc';
+    drop.ondrop = e => { e.preventDefault(); drop.style.borderColor = '#ccc'; file = e.dataTransfer.files[0]; shareBtn.disabled = !file; };
+
+    const iroh = await Iroh.create();
+
+    shareBtn.onclick = async () => {
+      status.textContent = 'Uploading...';
+      const hash = await iroh.blobs.add(new Uint8Array(await file.arrayBuffer()));
+      const url = `${location.origin}${location.pathname}?hash=${hash}`;
+      linkIn.value = url;
+      await navigator.clipboard.writeText(url);
+      status.textContent = '✅ Copied! Send this link.';
+    };
+
+    const params = new URLSearchParams(location.search);
+    if (params.has('hash')) {
+      document.body.innerHTML = '<h1>📥 Receiving...</h1><p>Connecting via P2P...</p>';
+      const data = await iroh.blobs.get(params.get('hash'));
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([data]));
+      a.download = 'shared-file';
+      a.click();
+    }
+  </script>
+</body>
+</html>
