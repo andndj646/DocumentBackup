@@ -13,7 +13,7 @@
     input[type=file]{display:none}
     button{background:#6366f1;color:white;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;margin:10px}
     #link{width:100%;padding:10px;margin:15px 0;border:1px solid #ddd;border-radius:6px;background:transparent;color:inherit}
-    .status{color:#10b981;font-size:0.9em}
+    .status{color:#ef4444;font-size:0.9em}
   </style>
 </head>
 <body>
@@ -31,33 +31,56 @@
     const shareBtn = document.getElementById('share');
     const linkIn = document.getElementById('link');
     const status = document.getElementById('s');
-    let file;
+    let file, iroh;
 
     drop.onclick = () => fIn.click();
-    fIn.onchange = e => { file = e.target.files[0]; shareBtn.disabled = !file; };
+    fIn.onchange = e => { file = e.target.files[0]; shareBtn.disabled = !file || !iroh; };
     drop.ondragover = e => { e.preventDefault(); drop.style.borderColor = '#6366f1'; };
     drop.ondragleave = () => drop.style.borderColor = '#ccc';
-    drop.ondrop = e => { e.preventDefault(); drop.style.borderColor = '#ccc'; file = e.dataTransfer.files[0]; shareBtn.disabled = !file; };
+    drop.ondrop = e => { e.preventDefault(); drop.style.borderColor = '#ccc'; file = e.dataTransfer.files[0]; shareBtn.disabled = !file || !iroh; };
 
-    const iroh = await Iroh.create();
+    try {
+      iroh = await Iroh.create();
+      shareBtn.disabled = !file; // 启用按钮（如果已有文件）
+      status.textContent = '';
+    } catch (err) {
+      status.textContent = '⚠️ Iroh init failed. Use HTTPS (GitHub Pages OK).';
+      console.error(err);
+    }
 
     shareBtn.onclick = async () => {
+      if (!file || !iroh) return;
       status.textContent = 'Uploading...';
-      const hash = await iroh.blobs.add(new Uint8Array(await file.arrayBuffer()));
-      const url = `${location.origin}${location.pathname}?hash=${hash}`;
-      linkIn.value = url;
-      await navigator.clipboard.writeText(url);
-      status.textContent = '✅ Copied! Send this link.';
+      try {
+        const hash = await iroh.blobs.add(new Uint8Array(await file.arrayBuffer()));
+        const url = `${location.origin}${location.pathname}?hash=${hash}`;
+        linkIn.value = url;
+        await navigator.clipboard.writeText(url);
+        status.textContent = '✅ Link copied!';
+        status.style.color = '#10b981';
+      } catch (err) {
+        status.textContent = '❌ Upload failed: ' + (err.message || err);
+        status.style.color = '#ef4444';
+      }
     };
 
     const params = new URLSearchParams(location.search);
     if (params.has('hash')) {
-      document.body.innerHTML = '<h1>📥 Receiving...</h1><p>Connecting via P2P...</p>';
-      const data = await iroh.blobs.get(params.get('hash'));
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([data]));
-      a.download = 'shared-file';
-      a.click();
+      document.body.innerHTML = '<h1>📥 Receiving...</h1><p>Connecting via P2P...</p><div class="status" id="s2"></div>';
+      const s2 = document.getElementById('s2');
+      try {
+        const node = await Iroh.create();
+        const data = await node.blobs.get(params.get('hash'));
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([data]));
+        a.download = 'shared-file';
+        a.click();
+        s2.textContent = '✅ Done!';
+        s2.style.color = '#10b981';
+      } catch (err) {
+        s2.textContent = '❌ Failed: ' + (err.message || 'Check network & HTTPS');
+        s2.style.color = '#ef4444';
+      }
     }
   </script>
 </body>
